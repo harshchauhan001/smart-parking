@@ -1,25 +1,18 @@
 require("dotenv").config();
 
 const express = require("express");
-
 const cors = require("cors");
-
 const bcrypt = require("bcryptjs");
-
 const jwt = require("jsonwebtoken");
-
-const db = require("./database");
-
+const db = require("./db");
 
 const app = express();
-
 
 /* =========================================
    MIDDLEWARE
 ========================================= */
 
 app.use(cors());
-
 app.use(express.json());
 
 
@@ -30,8 +23,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 5000;
 
 const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  "parksmart_secret";
+  process.env.JWT_SECRET || "parksmart_secret";
 
 
 /* =========================================
@@ -39,38 +31,28 @@ const JWT_SECRET =
 ========================================= */
 
 app.get("/", (req, res) => {
-
   res.json({
-    message:
-      "ParkSmart backend is running successfully!"
+    message: "ParkSmart backend is running successfully!"
   });
-
 });
 
 
 /* =========================================
-   AUTH MIDDLEWARE
+   AUTHENTICATION MIDDLEWARE
 ========================================= */
 
 function authenticateToken(req, res, next) {
 
-  const authHeader =
-    req.headers["authorization"];
-
+  const authHeader = req.headers["authorization"];
 
   const token =
-    authHeader &&
-    authHeader.split(" ")[1];
-
+    authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-
     return res.status(401).json({
       message: "Access token required"
     });
-
   }
-
 
   jwt.verify(
     token,
@@ -78,21 +60,16 @@ function authenticateToken(req, res, next) {
     (error, user) => {
 
       if (error) {
-
         return res.status(403).json({
           message: "Invalid or expired token"
         });
-
       }
-
 
       req.user = user;
 
       next();
-
     }
   );
-
 }
 
 
@@ -122,26 +99,26 @@ app.post("/api/auth/register", async (req, res) => {
     ) {
 
       return res.status(400).json({
-        message:
-          "Please fill all required fields"
+        message: "Please fill all required fields"
       });
 
     }
 
 
-    const existingUser =
-      db.prepare(`
-        SELECT id
-        FROM users
-        WHERE email = ?
-      `).get(email);
+    const [existingUsers] = await db.query(
+      `
+      SELECT id
+      FROM users
+      WHERE email = ?
+      `,
+      [email]
+    );
 
 
-    if (existingUser) {
+    if (existingUsers.length > 0) {
 
       return res.status(409).json({
-        message:
-          "Email already registered"
+        message: "Email already registered"
       });
 
     }
@@ -151,35 +128,34 @@ app.post("/api/auth/register", async (req, res) => {
       await bcrypt.hash(password, 10);
 
 
-    const result =
-      db.prepare(`
-        INSERT INTO users
-        (
-          name,
-          email,
-          password,
-          vehicle_number,
-          license_number,
-          role
-        )
-        VALUES (?, ?, ?, ?, ?, 'user')
-      `)
-      .run(
+    const [result] = await db.query(
+      `
+      INSERT INTO users
+      (
+        name,
+        email,
+        password,
+        vehicle_number,
+        license_number,
+        role
+      )
+      VALUES (?, ?, ?, ?, ?, 'user')
+      `,
+      [
         name,
         email,
         hashedPassword,
         vehicleNumber,
         licenseNumber
-      );
+      ]
+    );
 
 
     res.status(201).json({
 
-      message:
-        "User registered successfully",
+      message: "User registered successfully",
 
-      userId:
-        result.lastInsertRowid
+      userId: result.insertId
 
     });
 
@@ -187,11 +163,10 @@ app.post("/api/auth/register", async (req, res) => {
 
   catch (error) {
 
-    console.error(error);
+    console.error("REGISTER USER ERROR:", error);
 
     res.status(500).json({
-      message:
-        "Server error during registration"
+      message: "Server error during registration"
     });
 
   }
@@ -221,26 +196,26 @@ app.post("/api/auth/register-partner", async (req, res) => {
     ) {
 
       return res.status(400).json({
-        message:
-          "Please fill all required fields"
+        message: "Please fill all required fields"
       });
 
     }
 
 
-    const existingUser =
-      db.prepare(`
-        SELECT id
-        FROM users
-        WHERE email = ?
-      `).get(email);
+    const [existingUsers] = await db.query(
+      `
+      SELECT id
+      FROM users
+      WHERE email = ?
+      `,
+      [email]
+    );
 
 
-    if (existingUser) {
+    if (existingUsers.length > 0) {
 
       return res.status(409).json({
-        message:
-          "Email already registered"
+        message: "Email already registered"
       });
 
     }
@@ -250,33 +225,32 @@ app.post("/api/auth/register-partner", async (req, res) => {
       await bcrypt.hash(password, 10);
 
 
-    const result =
-      db.prepare(`
-        INSERT INTO users
-        (
-          name,
-          email,
-          password,
-          vehicle_number,
-          license_number,
-          role
-        )
-        VALUES (?, ?, ?, '', '', 'partner')
-      `)
-      .run(
+    const [result] = await db.query(
+      `
+      INSERT INTO users
+      (
+        name,
+        email,
+        password,
+        vehicle_number,
+        license_number,
+        role
+      )
+      VALUES (?, ?, ?, '', '', 'partner')
+      `,
+      [
         name,
         email,
         hashedPassword
-      );
+      ]
+    );
 
 
     res.status(201).json({
 
-      message:
-        "Partner registered successfully",
+      message: "Partner registered successfully",
 
-      partnerId:
-        result.lastInsertRowid
+      partnerId: result.insertId
 
     });
 
@@ -284,11 +258,10 @@ app.post("/api/auth/register-partner", async (req, res) => {
 
   catch (error) {
 
-    console.error(error);
+    console.error("REGISTER PARTNER ERROR:", error);
 
     res.status(500).json({
-      message:
-        "Server error during partner registration"
+      message: "Server error during partner registration"
     });
 
   }
@@ -325,17 +298,18 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
 
-    const user =
-      db.prepare(`
-        SELECT *
-        FROM users
-        WHERE email = ?
-        AND role = ?
-      `)
-      .get(email, role);
+    const [users] = await db.query(
+      `
+      SELECT *
+      FROM users
+      WHERE email = ?
+      AND role = ?
+      `,
+      [email, role]
+    );
 
 
-    if (!user) {
+    if (users.length === 0) {
 
       return res.status(401).json({
         message:
@@ -343,6 +317,9 @@ app.post("/api/auth/login", async (req, res) => {
       });
 
     }
+
+
+    const user = users[0];
 
 
     const passwordMatch =
@@ -366,9 +343,7 @@ app.post("/api/auth/login", async (req, res) => {
       jwt.sign(
         {
           id: user.id,
-
           email: user.email,
-
           role: user.role
         },
 
@@ -382,8 +357,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     res.json({
 
-      message:
-        "Login successful",
+      message: "Login successful",
 
       token,
 
@@ -411,11 +385,10 @@ app.post("/api/auth/login", async (req, res) => {
 
   catch (error) {
 
-    console.error(error);
+    console.error("LOGIN ERROR:", error);
 
     res.status(500).json({
-      message:
-        "Server error during login"
+      message: "Server error during login"
     });
 
   }
@@ -424,20 +397,20 @@ app.post("/api/auth/login", async (req, res) => {
 
 
 /* =========================================
-   GET PARKING CENTRES
+   GET ALL PARKING CENTRES
 ========================================= */
 
-app.get("/api/parking", (req, res) => {
+app.get("/api/parking", async (req, res) => {
 
   try {
 
-    const parking =
-      db.prepare(`
-        SELECT *
-        FROM parking_centres
-        ORDER BY id DESC
-      `)
-      .all();
+    const [parking] = await db.query(
+      `
+      SELECT *
+      FROM parking_centers
+      ORDER BY id DESC
+      `
+    );
 
 
     res.json(parking);
@@ -446,11 +419,10 @@ app.get("/api/parking", (req, res) => {
 
   catch (error) {
 
-    console.error(error);
+    console.error("GET PARKING ERROR:", error);
 
     res.status(500).json({
-      message:
-        "Could not load parking centres"
+      message: "Could not load parking centres"
     });
 
   }
@@ -465,7 +437,7 @@ app.get("/api/parking", (req, res) => {
 app.post(
   "/api/parking",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
@@ -480,23 +452,14 @@ app.post(
 
 
       const {
-
         name,
-
         location,
-
         totalSlots,
-
         availableSlots,
-
         price,
-
         contact,
-
         openingTime,
-
         closingTime
-
       } = req.body;
 
 
@@ -530,54 +493,44 @@ app.post(
       }
 
 
-      const result =
-        db.prepare(`
-          INSERT INTO parking_centres
-          (
-            partner_id,
-            name,
-            location,
-            total_slots,
-            available_slots,
-            price,
-            contact,
-            opening_time,
-            closing_time
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `)
-        .run(
-
-          req.user.id,
-
+      const [result] = await db.query(
+        `
+        INSERT INTO parking_centers
+        (
+          partner_id,
           name,
-
           location,
-
-          Number(totalSlots),
-
-          Number(availableSlots),
-
-          Number(price),
-
+          total_slots,
+          available_slots,
+          price,
           contact,
-
+          opening_time,
+          closing_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          req.user.id,
+          name,
+          location,
+          Number(totalSlots),
+          Number(availableSlots),
+          Number(price),
+          contact,
           openingTime || "08:00",
-
           closingTime || "22:00"
+        ]
+      );
 
-        );
 
-
-      const parking =
-        db.prepare(`
-          SELECT *
-          FROM parking_centres
-          WHERE id = ?
-        `)
-        .get(
-          result.lastInsertRowid
-        );
+      const [parkingRows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE id = ?
+        `,
+        [result.insertId]
+      );
 
 
       res.status(201).json({
@@ -585,7 +538,8 @@ app.post(
         message:
           "Parking centre added successfully",
 
-        parking
+        parking:
+          parkingRows[0]
 
       });
 
@@ -593,7 +547,7 @@ app.post(
 
     catch (error) {
 
-      console.error(error);
+      console.error("ADD PARKING ERROR:", error);
 
       res.status(500).json({
         message:
@@ -613,7 +567,7 @@ app.post(
 app.put(
   "/api/parking/:id",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
@@ -631,16 +585,17 @@ app.put(
         Number(req.params.id);
 
 
-      const parking =
-        db.prepare(`
-          SELECT *
-          FROM parking_centres
-          WHERE id = ?
-        `)
-        .get(parkingId);
+      const [parkingRows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE id = ?
+        `,
+        [parkingId]
+      );
 
 
-      if (!parking) {
+      if (parkingRows.length === 0) {
 
         return res.status(404).json({
           message:
@@ -650,9 +605,12 @@ app.put(
       }
 
 
+      const parking = parkingRows[0];
+
+
       if (
-        parking.partner_id !==
-        req.user.id
+        Number(parking.partner_id) !==
+        Number(req.user.id)
       ) {
 
         return res.status(403).json({
@@ -664,79 +622,66 @@ app.put(
 
 
       const {
-
         name,
-
         location,
-
         totalSlots,
-
         availableSlots,
-
         price,
-
         contact,
-
         openingTime,
-
         closingTime
-
       } = req.body;
 
 
-      db.prepare(`
-        UPDATE parking_centres
+      if (
+        Number(availableSlots) >
+        Number(totalSlots)
+      ) {
 
+        return res.status(400).json({
+          message:
+            "Available slots cannot exceed total slots"
+        });
+
+      }
+
+
+      await db.query(
+        `
+        UPDATE parking_centers
         SET
-
           name = ?,
-
           location = ?,
-
           total_slots = ?,
-
           available_slots = ?,
-
           price = ?,
-
           contact = ?,
-
           opening_time = ?,
-
           closing_time = ?
-
         WHERE id = ?
-      `)
-      .run(
-
-        name,
-
-        location,
-
-        Number(totalSlots),
-
-        Number(availableSlots),
-
-        Number(price),
-
-        contact,
-
-        openingTime,
-
-        closingTime,
-
-        parkingId
-
+        `,
+        [
+          name,
+          location,
+          Number(totalSlots),
+          Number(availableSlots),
+          Number(price),
+          contact,
+          openingTime,
+          closingTime,
+          parkingId
+        ]
       );
 
 
-      const updatedParking =
-        db.prepare(`
-          SELECT *
-          FROM parking_centres
-          WHERE id = ?
-        `)
-        .get(parkingId);
+      const [updatedRows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE id = ?
+        `,
+        [parkingId]
+      );
 
 
       res.json({
@@ -745,7 +690,7 @@ app.put(
           "Parking centre updated",
 
         parking:
-          updatedParking
+          updatedRows[0]
 
       });
 
@@ -753,7 +698,7 @@ app.put(
 
     catch (error) {
 
-      console.error(error);
+      console.error("UPDATE PARKING ERROR:", error);
 
       res.status(500).json({
         message:
@@ -773,7 +718,7 @@ app.put(
 app.delete(
   "/api/parking/:id",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
@@ -791,16 +736,17 @@ app.delete(
         Number(req.params.id);
 
 
-      const parking =
-        db.prepare(`
-          SELECT *
-          FROM parking_centres
-          WHERE id = ?
-        `)
-        .get(parkingId);
+      const [parkingRows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE id = ?
+        `,
+        [parkingId]
+      );
 
 
-      if (!parking) {
+      if (parkingRows.length === 0) {
 
         return res.status(404).json({
           message:
@@ -810,9 +756,12 @@ app.delete(
       }
 
 
+      const parking = parkingRows[0];
+
+
       if (
-        parking.partner_id !==
-        req.user.id
+        Number(parking.partner_id) !==
+        Number(req.user.id)
       ) {
 
         return res.status(403).json({
@@ -823,11 +772,13 @@ app.delete(
       }
 
 
-      db.prepare(`
-        DELETE FROM parking_centres
+      await db.query(
+        `
+        DELETE FROM parking_centers
         WHERE id = ?
-      `)
-      .run(parkingId);
+        `,
+        [parkingId]
+      );
 
 
       res.json({
@@ -841,7 +792,7 @@ app.delete(
 
     catch (error) {
 
-      console.error(error);
+      console.error("DELETE PARKING ERROR:", error);
 
       res.status(500).json({
         message:
@@ -861,7 +812,7 @@ app.delete(
 app.patch(
   "/api/parking/:id/slots",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
@@ -884,16 +835,17 @@ app.patch(
       } = req.body;
 
 
-      const parking =
-        db.prepare(`
-          SELECT *
-          FROM parking_centres
-          WHERE id = ?
-        `)
-        .get(parkingId);
+      const [parkingRows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE id = ?
+        `,
+        [parkingId]
+      );
 
 
-      if (!parking) {
+      if (parkingRows.length === 0) {
 
         return res.status(404).json({
           message:
@@ -903,9 +855,12 @@ app.patch(
       }
 
 
+      const parking = parkingRows[0];
+
+
       if (
-        parking.partner_id !==
-        req.user.id
+        Number(parking.partner_id) !==
+        Number(req.user.id)
       ) {
 
         return res.status(403).json({
@@ -930,26 +885,27 @@ app.patch(
       }
 
 
-      db.prepare(`
-        UPDATE parking_centres
-
+      await db.query(
+        `
+        UPDATE parking_centers
         SET available_slots = ?
-
         WHERE id = ?
-      `)
-      .run(
-        Number(availableSlots),
-        parkingId
+        `,
+        [
+          Number(availableSlots),
+          parkingId
+        ]
       );
 
 
-      const updatedParking =
-        db.prepare(`
-          SELECT *
-          FROM parking_centres
-          WHERE id = ?
-        `)
-        .get(parkingId);
+      const [updatedRows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE id = ?
+        `,
+        [parkingId]
+      );
 
 
       res.json({
@@ -958,7 +914,7 @@ app.patch(
           "Slot availability updated",
 
         parking:
-          updatedParking
+          updatedRows[0]
 
       });
 
@@ -966,7 +922,7 @@ app.patch(
 
     catch (error) {
 
-      console.error(error);
+      console.error("UPDATE SLOTS ERROR:", error);
 
       res.status(500).json({
         message:
@@ -986,7 +942,9 @@ app.patch(
 app.post(
   "/api/reservations",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
+
+    let connection;
 
     try {
 
@@ -1001,17 +959,11 @@ app.post(
 
 
       const {
-
         parkingId,
-
         vehicleNumber,
-
         slotNumber,
-
         paymentMethod,
-
         amount
-
       } = req.body;
 
 
@@ -1031,16 +983,28 @@ app.post(
       }
 
 
-      const parking =
-        db.prepare(`
+      connection =
+        await db.getConnection();
+
+
+      await connection.beginTransaction();
+
+
+      const [parkingRows] =
+        await connection.query(
+          `
           SELECT *
-          FROM parking_centres
+          FROM parking_centers
           WHERE id = ?
-        `)
-        .get(Number(parkingId));
+          FOR UPDATE
+          `,
+          [Number(parkingId)]
+        );
 
 
-      if (!parking) {
+      if (parkingRows.length === 0) {
+
+        await connection.rollback();
 
         return res.status(404).json({
           message:
@@ -1050,9 +1014,15 @@ app.post(
       }
 
 
+      const parking =
+        parkingRows[0];
+
+
       if (
-        parking.available_slots <= 0
+        Number(parking.available_slots) <= 0
       ) {
+
+        await connection.rollback();
 
         return res.status(400).json({
           message:
@@ -1062,74 +1032,60 @@ app.post(
       }
 
 
-      const reservation =
-        db.transaction(() => {
-
-          const result =
-            db.prepare(`
-              INSERT INTO reservations
-              (
-                user_id,
-                parking_id,
-                vehicle_number,
-                slot_number,
-                payment_method,
-                amount,
-                status
-              )
-              VALUES (?, ?, ?, ?, ?, ?, 'confirmed')
-            `)
-            .run(
-
-              req.user.id,
-
-              Number(parkingId),
-
-              vehicleNumber,
-
-              Number(slotNumber),
-
-              paymentMethod,
-
-              Number(amount)
-
-            );
+      const [result] =
+        await connection.query(
+          `
+          INSERT INTO reservations
+          (
+            user_id,
+            parking_id,
+            vehicle_number,
+            slot_number,
+            payment_method,
+            amount,
+            status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, 'confirmed')
+          `,
+          [
+            req.user.id,
+            Number(parkingId),
+            vehicleNumber,
+            Number(slotNumber),
+            paymentMethod,
+            Number(amount)
+          ]
+        );
 
 
-          db.prepare(`
-            UPDATE parking_centres
-
-            SET available_slots =
-              available_slots - 1
-
-            WHERE id = ?
-          `)
-          .run(Number(parkingId));
-
-
-          return result.lastInsertRowid;
-
-        })();
+      await connection.query(
+        `
+        UPDATE parking_centers
+        SET available_slots =
+          available_slots - 1
+        WHERE id = ?
+        `,
+        [Number(parkingId)]
+      );
 
 
-      const savedReservation =
-        db.prepare(`
+      await connection.commit();
+
+
+      const [savedRows] =
+        await db.query(
+          `
           SELECT
             r.*,
-
             p.name AS parking_name,
-
             p.location AS parking_location
-
           FROM reservations r
-
-          JOIN parking_centres p
-
-          ON r.parking_id = p.id
-
+          JOIN parking_centers p
+            ON r.parking_id = p.id
           WHERE r.id = ?
-        `)
-        .get(reservation);
+          `,
+          [result.insertId]
+        );
 
 
       res.status(201).json({
@@ -1138,7 +1094,7 @@ app.post(
           "Reservation confirmed",
 
         reservation:
-          savedReservation
+          savedRows[0]
 
       });
 
@@ -1146,12 +1102,27 @@ app.post(
 
     catch (error) {
 
-      console.error(error);
+      if (connection) {
+        await connection.rollback();
+      }
+
+      console.error(
+        "CREATE RESERVATION ERROR:",
+        error
+      );
 
       res.status(500).json({
         message:
           "Could not create reservation"
       });
+
+    }
+
+    finally {
+
+      if (connection) {
+        connection.release();
+      }
 
     }
 
@@ -1166,31 +1137,25 @@ app.post(
 app.get(
   "/api/reservations/my",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
-      const reservations =
-        db.prepare(`
+      const [reservations] =
+        await db.query(
+          `
           SELECT
-
             r.*,
-
             p.name AS parking_name,
-
             p.location AS parking_location
-
           FROM reservations r
-
-          JOIN parking_centres p
-
-          ON r.parking_id = p.id
-
+          JOIN parking_centers p
+            ON r.parking_id = p.id
           WHERE r.user_id = ?
-
           ORDER BY r.id DESC
-        `)
-        .all(req.user.id);
+          `,
+          [req.user.id]
+        );
 
 
       res.json(reservations);
@@ -1199,7 +1164,10 @@ app.get(
 
     catch (error) {
 
-      console.error(error);
+      console.error(
+        "GET USER RESERVATIONS ERROR:",
+        error
+      );
 
       res.status(500).json({
         message:
@@ -1219,7 +1187,7 @@ app.get(
 app.get(
   "/api/partner/reservations",
   authenticateToken,
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
@@ -1233,35 +1201,25 @@ app.get(
       }
 
 
-      const reservations =
-        db.prepare(`
+      const [reservations] =
+        await db.query(
+          `
           SELECT
-
             r.*,
-
             p.name AS parking_name,
-
             p.location AS parking_location,
-
             u.name AS user_name,
-
             u.email AS user_email
-
           FROM reservations r
-
-          JOIN parking_centres p
-
-          ON r.parking_id = p.id
-
+          JOIN parking_centers p
+            ON r.parking_id = p.id
           JOIN users u
-
-          ON r.user_id = u.id
-
+            ON r.user_id = u.id
           WHERE p.partner_id = ?
-
           ORDER BY r.id DESC
-        `)
-        .all(req.user.id);
+          `,
+          [req.user.id]
+        );
 
 
       res.json(reservations);
@@ -1270,7 +1228,10 @@ app.get(
 
     catch (error) {
 
-      console.error(error);
+      console.error(
+        "GET PARTNER RESERVATIONS ERROR:",
+        error
+      );
 
       res.status(500).json({
         message:
