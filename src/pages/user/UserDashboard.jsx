@@ -21,6 +21,9 @@ function UserDashboard({ onLogout }) {
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
 
+
+  const [myReservations, setMyReservations] = useState([]);
+  const [showMyReservations, setShowMyReservations] = useState(false);
   // ================================
   // PARKING
   // ================================
@@ -136,6 +139,41 @@ function UserDashboard({ onLogout }) {
 
   }, []);
 
+
+
+  const loadMyReservations = async () => {
+
+    try {
+
+      const token = getToken();
+
+      if (!token) return;
+
+      const response = await fetch(
+        `${API_URL}/api/reservations/my`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      console.log("MY RESERVATIONS RESPONSE:", data);
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not load reservations");
+      }
+
+      setMyReservations(Array.isArray(data) ? data : []);
+
+    } catch (error) {
+      console.error("LOAD MY RESERVATIONS ERROR:", error);
+      setMyReservations([]);
+    }
+
+  };
 
   // ==================================================
   // FIND PARKING
@@ -333,19 +371,19 @@ function UserDashboard({ onLogout }) {
       const saved = data.reservation;
 
       const newReservation = {
-        id: saved.id,
+        id: saved?.id,
         userId: currentUser?.id,
         userName: currentUser?.name,
         userEmail: currentUser?.email,
-        parkingId: saved.parkingId,
-        parkingName: saved.parkingName,
-        location: saved.parkingLocation,
-        slot: saved.slotNumber,
-        vehicleNumber: saved.vehicleNumber,
+        parkingId: selectedParking.id,
+        parkingName: selectedParking.name,
+        location: selectedParking.location,
+        slot: selectedSlot,
+        vehicleNumber: vehicleNumber,
         licenseNumber,
         price: selectedParking.price,
-        status: saved.status,
-        paymentMethod: saved.paymentMethod,
+        status: saved?.status || "Confirmed",
+        paymentMethod: paymentMethod,
         paymentStatus:
           paymentMethod === "cash"
             ? "Pay at Parking Centre"
@@ -460,7 +498,16 @@ function UserDashboard({ onLogout }) {
               "User"}
 
           </span>
-
+          
+          <button
+            className="logout-btn"
+            onClick={() => {
+              loadMyReservations();
+              setShowMyReservations(true);
+            }}
+          >
+            My Reservations
+          </button>
 
           <button
             className="logout-btn"
@@ -487,7 +534,89 @@ function UserDashboard({ onLogout }) {
             RESERVATION SUCCESS
         ===================================== */}
 
-        {reservation &&
+        {showMyReservations ? (
+
+          <section className="reservation-success">
+
+            <button
+              className="back-btn"
+              onClick={() => setShowMyReservations(false)}
+            >
+              ← Back to Dashboard
+            </button>
+
+            <h1>My Reservations</h1>
+
+            {myReservations.length === 0 ? (
+
+              <p>You have no reservations yet.</p>
+
+            ) : (
+
+              myReservations.map((r) => (
+
+                <div className="parking-pass" key={r.id}>
+
+                  <div className="pass-top">
+                    <div>
+                      <span className="pass-brand">PARKSMART</span>
+                      <h2>Parking Pass</h2>
+                    </div>
+                    <div className="pass-status">
+                      {r.status || "Confirmed"}
+                    </div>
+                  </div>
+
+                  <div className="pass-divider"></div>
+
+                  <div className="pass-main">
+                    <div className="pass-slot">
+                      <span>PARKING SLOT</span>
+                      <strong>P-{r.slotNumber ?? r.slot_number}</strong>
+                    </div>
+                    <div className="pass-id">
+                      <span>RESERVATION ID</span>
+                      <strong>PS-{r.id}</strong>
+                    </div>
+                  </div>
+
+                  <div className="pass-details">
+
+                    <div>
+                      <span>Parking Centre</span>
+                      <strong>{r.parkingName || r.parking_name}</strong>
+                    </div>
+
+                    <div>
+                      <span>Location</span>
+                      <strong>{r.parkingLocation || r.parking_location}</strong>
+                    </div>
+
+                    <div>
+                      <span>Vehicle Number</span>
+                      <strong>{r.vehicleNumber || r.vehicle_number}</strong>
+                    </div>
+
+                    <div>
+                      <span>Payment</span>
+                      <strong>
+                        {(r.paymentMethod || r.payment_method) === "cash"
+                          ? "Cash at Centre"
+                          : "Online Paid"}
+                      </strong>
+                    </div>
+
+                  </div>
+
+                </div>
+
+              ))
+
+            )}
+
+          </section>
+
+        ) : reservation &&
         paymentSuccess ? (
 
           <section className="reservation-success">
@@ -1114,7 +1243,6 @@ function UserDashboard({ onLogout }) {
               <div className="slot-grid">
 
                 {generateSlots()
-                  .slice(0, 20)
                   .map((slot) => (
 
                     <button
