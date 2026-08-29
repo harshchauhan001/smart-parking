@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import "./PartnerDashboard.css";
 
 const API_URL = "http://localhost:3000";
@@ -45,8 +45,14 @@ function PartnerDashboard({ user, onLogout }) {
   ========================================= */
 
   const getToken = () => {
-  return localStorage.getItem("parksmart_token");
-};
+
+    return (
+      localStorage.getItem("token") ||
+      localStorage.getItem("authToken") ||
+      localStorage.getItem("jwt")
+    );
+
+  };
 
 
   /* =========================================
@@ -753,7 +759,7 @@ function PartnerDashboard({ user, onLogout }) {
           >
 
             {showAddForm
-              ? "✕ Close"
+              ? "âœ• Close"
               : "+ Add Parking Centre"}
 
           </button>
@@ -792,7 +798,7 @@ function PartnerDashboard({ user, onLogout }) {
           <div className="partner-stat-card">
 
             <div className="stat-icon purple">
-              ▦
+              â–¦
             </div>
 
             <div>
@@ -813,7 +819,7 @@ function PartnerDashboard({ user, onLogout }) {
           <div className="partner-stat-card">
 
             <div className="stat-icon green">
-              ✓
+              âœ“
             </div>
 
             <div>
@@ -834,7 +840,7 @@ function PartnerDashboard({ user, onLogout }) {
           <div className="partner-stat-card">
 
             <div className="stat-icon red">
-              ●
+              â—
             </div>
 
             <div>
@@ -967,7 +973,7 @@ function PartnerDashboard({ user, onLogout }) {
               <div className="partner-input">
 
                 <label>
-                  Price per Hour (₹) *
+                  Price per Hour (â‚¹) *
                 </label>
 
                 <input
@@ -1169,7 +1175,7 @@ function PartnerDashboard({ user, onLogout }) {
                             }
                             title="Edit"
                           >
-                            ✎
+                            âœŽ
                           </button>
 
 
@@ -1181,7 +1187,7 @@ function PartnerDashboard({ user, onLogout }) {
                             }
                             title="Delete"
                           >
-                            ×
+                            Ã—
                           </button>
 
                         </div>
@@ -1195,7 +1201,7 @@ function PartnerDashboard({ user, onLogout }) {
 
 
                       <p className="partner-location">
-                        📍 {parking.location}
+                        ðŸ“ {parking.location}
                       </p>
 
 
@@ -1260,7 +1266,7 @@ function PartnerDashboard({ user, onLogout }) {
                           </span>
 
                           <strong>
-                            ₹{parking.price}
+                            â‚¹{parking.price}
                           </strong>
 
                         </div>
@@ -1285,7 +1291,7 @@ function PartnerDashboard({ user, onLogout }) {
                               )
                             }
                           >
-                            −
+                            âˆ’
                           </button>
 
 
@@ -1313,7 +1319,7 @@ function PartnerDashboard({ user, onLogout }) {
                       <div className="partner-card-footer">
 
                         <span>
-                          🕐{" "}
+                          ðŸ•{" "}
                           {parking.opening_time ||
                             "08:00"}
                           {" - "}
@@ -1322,7 +1328,7 @@ function PartnerDashboard({ user, onLogout }) {
                         </span>
 
                         <span>
-                          📞{" "}
+                          ðŸ“ž{" "}
                           {parking.contact}
                         </span>
 
@@ -1379,7 +1385,7 @@ function PartnerDashboard({ user, onLogout }) {
 
               {showReservations
                 ? "Hide Reservations"
-                : "View Reservations →"}
+                : "View Reservations â†’"}
 
             </button>
 
@@ -1393,7 +1399,7 @@ function PartnerDashboard({ user, onLogout }) {
               <div className="no-reservations">
 
                 <div>
-                  📋
+                  ðŸ“‹
                 </div>
 
                 <h3>
@@ -1553,7 +1559,7 @@ function PartnerDashboard({ user, onLogout }) {
       <footer className="partner-footer">
 
         <p>
-          © 2026 ParkSmart Partner Portal
+          Â© 2026 ParkSmart Partner Portal
         </p>
 
         <span>

@@ -429,7 +429,6 @@ app.get("/api/parking", async (req, res) => {
 
 });
 
-
 /* =========================================
    ADD PARKING CENTRE
 ========================================= */
@@ -441,15 +440,12 @@ app.post(
 
     try {
 
+      // Only partner can add parking
       if (req.user.role !== "partner") {
-
         return res.status(403).json({
-          message:
-            "Only partners can add parking centres"
+          message: "Only partners can add parking centres"
         });
-
       }
-
 
       const {
         name,
@@ -462,7 +458,7 @@ app.post(
         closingTime
       } = req.body;
 
-
+      // Validate input
       if (
         !name ||
         !location ||
@@ -471,28 +467,22 @@ app.post(
         price === undefined ||
         !contact
       ) {
-
         return res.status(400).json({
-          message:
-            "Please provide all required fields"
+          message: "Please provide all required fields"
         });
-
       }
 
-
+      // Validate slots
       if (
-        Number(availableSlots) >
-        Number(totalSlots)
+        Number(availableSlots) < 0 ||
+        Number(availableSlots) > Number(totalSlots)
       ) {
-
         return res.status(400).json({
-          message:
-            "Available slots cannot exceed total slots"
+          message: "Invalid slot availability"
         });
-
       }
 
-
+      // Insert parking into MySQL
       const [result] = await db.query(
         `
         INSERT INTO parking_centers
@@ -517,12 +507,14 @@ app.post(
           Number(availableSlots),
           Number(price),
           contact,
-          openingTime || "08:00",
-          closingTime || "22:00"
+          openingTime || "08:00:00",
+          closingTime || "22:00:00"
         ]
       );
 
+      console.log("PARKING INSERT RESULT:", result);
 
+      // Get newly inserted parking
       const [parkingRows] = await db.query(
         `
         SELECT *
@@ -532,33 +524,26 @@ app.post(
         [result.insertId]
       );
 
+      console.log("PARKING SAVED:", parkingRows[0]);
 
-      res.status(201).json({
-
-        message:
-          "Parking centre added successfully",
-
-        parking:
-          parkingRows[0]
-
+      return res.status(201).json({
+        message: "Parking centre added successfully",
+        parking: parkingRows[0]
       });
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
       console.error("ADD PARKING ERROR:", error);
 
-      res.status(500).json({
-        message:
-          "Could not add parking centre"
+      return res.status(500).json({
+        message: "Could not add parking centre",
+        error: error.message
       });
 
     }
 
   }
 );
-
 
 /* =========================================
    UPDATE PARKING CENTRE
@@ -961,6 +946,7 @@ app.post(
       const {
         parkingId,
         vehicleNumber,
+        licenseNumber,
         slotNumber,
         paymentMethod,
         amount
@@ -1032,7 +1018,7 @@ app.post(
       }
 
 
-      const [result] =
+            const [result] =
         await connection.query(
           `
           INSERT INTO reservations
@@ -1040,20 +1026,26 @@ app.post(
             user_id,
             parking_id,
             vehicle_number,
+            license_number,
             slot_number,
+            price,
             payment_method,
-            amount,
-            status
+            payment_status,
+            status,
+            booking_date,
+            booking_time
           )
-          VALUES (?, ?, ?, ?, ?, ?, 'confirmed')
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', CURDATE(), CURTIME())
           `,
           [
             req.user.id,
             Number(parkingId),
             vehicleNumber,
+            licenseNumber || "",
             Number(slotNumber),
+            Number(amount),
             paymentMethod,
-            Number(amount)
+            paymentMethod === "cash" ? "Pay at Parking Centre" : "Paid"
           ]
         );
 
@@ -1243,6 +1235,59 @@ app.get(
   }
 );
 
+/* =========================================
+   GET PARTNER PARKING CENTRES
+========================================= */
+
+app.get(
+  "/api/partner/parking",
+  authenticateToken,
+  async (req, res) => {
+
+    try {
+
+      if (req.user.role !== "partner") {
+
+        return res.status(403).json({
+          message:
+            "Only partners can access their parking centres"
+        });
+
+      }
+
+      const [rows] = await db.query(
+        `
+        SELECT *
+        FROM parking_centers
+        WHERE partner_id = ?
+        ORDER BY id DESC
+        `,
+        [req.user.id]
+      );
+
+      console.log(
+        "PARTNER PARKING:",
+        rows
+      );
+
+      res.json(rows);
+
+    } catch (error) {
+
+      console.error(
+        "GET PARTNER PARKING ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        message:
+          "Could not load partner parking"
+      });
+
+    }
+
+  }
+);
 
 /* =========================================
    START SERVER

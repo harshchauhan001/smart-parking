@@ -3,6 +3,11 @@ import "./UserDashboard.css";
 
 function UserDashboard({ onLogout }) {
 
+  const API_URL = "http://localhost:3000";
+
+  const getToken = () => {
+    return localStorage.getItem("parksmart_token");
+  };
   // ================================
   // LOGGED-IN USER
   // ================================
@@ -92,53 +97,42 @@ function UserDashboard({ onLogout }) {
   }, []);
 
 
-  // ==================================================
-  // LOAD PARKING CENTRES
+    // ==================================================
+  // LOAD PARKING CENTRES FROM BACKEND
   // ==================================================
 
   useEffect(() => {
 
-    const loadParkingCenters = () => {
+    const loadParkingCenters = async () => {
 
-      const savedCenters =
-        localStorage.getItem(
-          "parkingCenters"
+      try {
+
+        const response = await fetch(
+          `${API_URL}/api/parking`
         );
 
-      if (savedCenters) {
+        const data = await response.json();
 
-        setParkingCenters(
-          JSON.parse(savedCenters)
-        );
+        console.log("PARKING CENTRES RESPONSE:", data);
 
-      }
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Could not load parking centres"
+          );
+        }
 
-      else {
+        setParkingCenters(data);
 
+      } catch (error) {
+
+        console.error("LOAD PARKING ERROR:", error);
         setParkingCenters([]);
 
       }
 
     };
 
-
     loadParkingCenters();
-
-
-    window.addEventListener(
-      "storage",
-      loadParkingCenters
-    );
-
-
-    return () => {
-
-      window.removeEventListener(
-        "storage",
-        loadParkingCenters
-      );
-
-    };
 
   }, []);
 
@@ -220,13 +214,13 @@ function UserDashboard({ onLogout }) {
 
     const totalSlots =
       Number(
-        selectedParking.totalSlots
+        selectedParking.total_slots
       );
 
 
     const availableSlots =
       Number(
-        selectedParking.availableSlots
+        selectedParking.available_slots
       );
 
 
@@ -283,166 +277,100 @@ function UserDashboard({ onLogout }) {
   };
 
 
-  // ==================================================
+    // ==================================================
   // PAYMENT
   // ==================================================
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
 
     if (!paymentMethod) {
-
-      alert(
-        "Please select a payment method."
-      );
-
+      alert("Please select a payment method.");
       return;
-
     }
 
-
-    if (
-      !selectedParking ||
-      !selectedSlot
-    ) {
-
+    if (!selectedParking || !selectedSlot) {
       return;
-
     }
 
+    try {
 
-    const newReservation = {
+      const token = getToken();
 
-      id: Date.now(),
+      if (!token) {
+        alert("Login session expired. Please login again.");
+        return;
+      }
 
-      userId:
-        currentUser?.id,
-
-      userName:
-        currentUser?.name,
-
-      userEmail:
-        currentUser?.email,
-
-      parkingId:
-        selectedParking.id,
-
-      parkingName:
-        selectedParking.name,
-
-      location:
-        selectedParking.location,
-
-      slot:
-        selectedSlot,
-
-      vehicleNumber,
-
-      licenseNumber,
-
-      price:
-        selectedParking.price,
-
-      status:
-        "Confirmed",
-
-      paymentMethod,
-
-      paymentStatus:
-        paymentMethod === "cash"
-          ? "Pay at Parking Centre"
-          : "Paid",
-
-      date:
-        new Date().toLocaleDateString(),
-
-      time:
-        new Date().toLocaleTimeString(),
-
-    };
-
-
-    // ==================================================
-    // USER-SPECIFIC RESERVATION STORAGE
-    // ==================================================
-
-    if (currentUser?.id) {
-
-      localStorage.setItem(
-
-        `currentReservation_${currentUser.id}`,
-
-        JSON.stringify(
-          newReservation
-        )
-
-      );
-
-    }
-
-
-    // ==================================================
-    // UPDATE PARKING AVAILABILITY
-    // ==================================================
-
-    const updatedCenters =
-      parkingCenters.map(
-        (parking) => {
-
-          if (
-
-            parking.id ===
-              selectedParking.id &&
-
-            Number(
-              parking.availableSlots
-            ) > 0
-
-          ) {
-
-            return {
-
-              ...parking,
-
-              availableSlots:
-                Number(
-                  parking.availableSlots
-                ) - 1,
-
-            };
-
-          }
-
-
-          return parking;
-
+      const response = await fetch(
+        `${API_URL}/api/reservations`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            parkingId: selectedParking.id,
+            vehicleNumber,
+            licenseNumber,
+            slotNumber: selectedSlot,
+            paymentMethod,
+            amount: selectedParking.price,
+          }),
         }
       );
 
+      const data = await response.json();
 
-    localStorage.setItem(
+      console.log("CREATE RESERVATION RESPONSE:", data);
 
-      "parkingCenters",
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Could not create reservation"
+        );
+      }
 
-      JSON.stringify(
-        updatedCenters
-      )
+      const saved = data.reservation;
 
-    );
+      const newReservation = {
+        id: saved.id,
+        userId: currentUser?.id,
+        userName: currentUser?.name,
+        userEmail: currentUser?.email,
+        parkingId: saved.parkingId,
+        parkingName: saved.parkingName,
+        location: saved.parkingLocation,
+        slot: saved.slotNumber,
+        vehicleNumber: saved.vehicleNumber,
+        licenseNumber,
+        price: selectedParking.price,
+        status: saved.status,
+        paymentMethod: saved.paymentMethod,
+        paymentStatus:
+          paymentMethod === "cash"
+            ? "Pay at Parking Centre"
+            : "Paid",
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+      };
 
+      setReservation(newReservation);
+      setPaymentSuccess(true);
 
-    setParkingCenters(
-      updatedCenters
-    );
+      // Refresh parking centres so available slots reflect the database
+      const refreshed = await fetch(`${API_URL}/api/parking`);
+      const refreshedData = await refreshed.json();
 
+      if (refreshed.ok) {
+        setParkingCenters(refreshedData);
+      }
 
-    setReservation(
-      newReservation
-    );
+    } catch (error) {
 
+      console.error("CREATE RESERVATION ERROR:", error);
+      alert(error.message || "Could not complete reservation.");
 
-    setPaymentSuccess(
-      true
-    );
+    }
 
   };
 
@@ -1529,7 +1457,7 @@ function UserDashboard({ onLogout }) {
 
                             <span className="available-badge">
 
-                              {parking.availableSlots}
+                              {parking.available_slots}
 
                               {" "}
 
@@ -1606,8 +1534,8 @@ function UserDashboard({ onLogout }) {
 
                               <span>
 
-                                {parking.availableSlots}/
-                                {parking.totalSlots}
+                                {parking.available_slots}/
+                                {parking.total_slots}
 
                               </span>
 
@@ -1623,11 +1551,11 @@ function UserDashboard({ onLogout }) {
                                 style={{
                                   width:
                                     `${
-                                      parking.totalSlots >
+                                      parking.total_slots >
                                       0
                                         ? (
-                                            parking.availableSlots /
-                                            parking.totalSlots
+                                            parking.available_slots /
+                                            parking.total_slots
                                           ) *
                                           100
                                         : 0
@@ -1645,11 +1573,11 @@ function UserDashboard({ onLogout }) {
 
                             🕐{" "}
 
-                            {parking.openingTime}
+                            {parking.opening_time}
 
                             {" - "}
 
-                            {parking.closingTime}
+                            {parking.closing_time}
 
                           </div>
 

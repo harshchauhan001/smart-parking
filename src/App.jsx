@@ -6,8 +6,50 @@ import UserDashboard from "./pages/user/UserDashboard";
 import PartnerDashboard from "./pages/partner/PartnerDashboard";
 
 function App() {
-  const [page, setPage] = useState("login");
-  const [user, setUser] = useState(null);
+  /* =========================================
+     RESTORE SESSION FROM LOCALSTORAGE
+     (only if BOTH token and user exist)
+  ========================================= */
+
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("parksmart_user");
+    const savedToken = localStorage.getItem("parksmart_token");
+
+    if (savedUser && savedToken) {
+      try {
+        return JSON.parse(savedUser);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    return null;
+  });
+
+  const [page, setPage] = useState(() => {
+    const savedUser = localStorage.getItem("parksmart_user");
+    const savedToken = localStorage.getItem("parksmart_token");
+
+    if (!savedUser || !savedToken) {
+      return "login";
+    }
+
+    try {
+      const parsed = JSON.parse(savedUser);
+
+      if (parsed.role === "partner") {
+        return "partnerDashboard";
+      }
+
+      if (parsed.role === "user") {
+        return "userDashboard";
+      }
+
+      return "login";
+    } catch (error) {
+      return "login";
+    }
+  });
 
   /* =========================================
      LOGIN
